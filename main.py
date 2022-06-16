@@ -4,33 +4,11 @@ from aiogram.dispatcher import FSMContext
 from aiogram.dispatcher.filters import Text
 from aiogram.dispatcher.filters.state import State, StatesGroup
 import pymongo
+from Dish import Dish
 #for aiogram.contrib.fsm_storage.mongo import MongoStorage
 # from WMArchive.Storage.MongoIO import MongoStorage
 # from WMArchive.Storage.HdfsIO import HdfsStorage
 # from apscheduler.schedulers.asyncio import AsyncIOScheduler
-
-class Dish:
-
-    def __init__(self, d):
-        self.section=d.get('section')
-        self.name=d.get('name')
-        self.price=d.get('price')
-        self.n=d.get('n')
-    def GetSection(self):
-        return self.section
-    def GetName(self):
-        return self.name
-    def GetPrice(self):
-        return self.price
-    def GetN(self):
-        return self.n
-
-    def ifSection(self, a):
-        return self.section == a
-    def ToBasket(self):
-        self.n+=1
-    def OfBasket(self):
-        self.n-=1
 
 class OrderFood(StatesGroup):
     waiting_for_adress = State()
@@ -47,8 +25,8 @@ bot = Bot(token=init["token"])
 conn_str = "mongodb://localhost:27017"
 client = pymongo.MongoClient(conn_str, serverSelectionTimeoutMS=5000)
 db = client["bot"]
-colection = db["Dispatcher"]
-dp = Dispatcher(bot, storage = colection)
+collection = db["Dispatcher"]
+dp = Dispatcher(bot, storage = collection)
 #dp = Dispatcher(bot)
 # Включаем логирование, чтобы не пропустить важные сообщения
 #logging.basicConfig(level=logging.INFO)
