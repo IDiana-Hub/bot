@@ -1,87 +1,37 @@
-import json
-from aiogram import Bot, Dispatcher, executor, types
+from aiogram import Bot, Dispatcher, types, executor
 from aiogram.dispatcher import FSMContext
 from aiogram.dispatcher.filters import Text
 from aiogram.dispatcher.filters.state import State, StatesGroup
-import pymongo
+from aiogram.contrib.fsm_storage.mongo import MongoStorage
+import dbconect as db
+import json
 from Dish import Dish
-#for aiogram.contrib.fsm_storage.mongo import MongoStorage
-# from WMArchive.Storage.MongoIO import MongoStorage
-# from WMArchive.Storage.HdfsIO import HdfsStorage
-# from apscheduler.schedulers.asyncio import AsyncIOScheduler
+import datetime
+import keyboard
+import basket
 
 class OrderFood(StatesGroup):
     waiting_for_adress = State()
     waiting_for_fone_namber = State()
+    corect=State()
+    waiting_for_corect=State()
 
 with open("menu.json", "r", encoding='utf-8') as read_file:
     init = json.load(read_file)
     read_file.close()
 MENU = [Dish(dish) for dish in init["menu"]]
-
 # Объект бота
 bot = Bot(token=init["token"])
 #Диспетчер для бота
-conn_str = "mongodb://localhost:27017"
-client = pymongo.MongoClient(conn_str, serverSelectionTimeoutMS=5000)
-db = client["bot"]
-collection = db["Dispatcher"]
-dp = Dispatcher(bot, storage = collection)
-#dp = Dispatcher(bot)
+#db.start()
+storage = MongoStorage(host='localhost', port=27017, db_name='bot', db_collection='state')
+dp = Dispatcher(bot, storage = storage)
 # Включаем логирование, чтобы не пропустить важные сообщения
 #logging.basicConfig(level=logging.INFO)
 
-def printBasket():
-    text = ""
-    cost = 0
-    for i in range(len(MENU)):
-        if MENU[i].GetN()>0:
-            text += f"{MENU[i].GetName()} x{MENU[i].GetN()}  {MENU[i].GetPrice()}грн  /del{i}\n"
-            cost += MENU[i].GetPrice() * MENU[i].GetN()
-    text += f"Вартість: {cost} грн"
-    return text
-
-def keyboardStart():
-    keyboard = types.ReplyKeyboardMarkup()
-    button1 = types.KeyboardButton(text="Меню")
-    keyboard.add(button1)
-    button2 = types.KeyboardButton(text="Переглянути кошик")
-    keyboard.add(button2)
-    return keyboard
-def keyboardMenu():
-    keyboard = types.ReplyKeyboardMarkup()
-    button1 = types.KeyboardButton(text="Піца")
-    keyboard.add(button1)
-    button2 = types.KeyboardButton(text="Чай")
-    keyboard.add(button2)
-    return keyboard
-def keyboardBack():
-    keyboard = types.ReplyKeyboardMarkup()
-    button1 = types.KeyboardButton(text="Меню")
-    keyboard.add(button1)
-    button2 = types.KeyboardButton(text="Переглянути кошик")
-    keyboard.add(button2)
-    return keyboard
-def keyboardBasket():
-    keyboard = types.ReplyKeyboardMarkup()
-    button1 = types.KeyboardButton(text="Меню")
-    keyboard.add(button1)
-    button2 = types.KeyboardButton(text="Оформити замовлення")
-    keyboard.add(button2)
-    button3 = types.KeyboardButton(text="Переглянути кошик")
-    keyboard.add(button3)
-    return keyboard
-def keyboardContact():
-    keyboard = types.ReplyKeyboardMarkup()
-    Button1 = types.KeyboardButton(text = 'Отправить свой контакт ☎️', request_contact =True)
-    Button2 = types.KeyboardButton(text = 'Отправить свою локацию 🗺️', request_location=True)
-    keyboard.add(Button1)
-    keyboard.add(Button2)
-    return keyboard
-
 @dp.message_handler(commands="start")
 async def cmd_start(message: types.Message):
-    await message.answer("Вас вітає ХХ, готові зробити замовлення?", reply_markup=keyboardStart())
+    await message.answer("Вас вітає ХХ, готові зробити замовлення?", reply_markup=keyboard.Start())
 
 @dp.message_handler(lambda message: message.text.startswith('/del'))
 async def del_expense(message: types.Message):
@@ -91,57 +41,96 @@ async def del_expense(message: types.Message):
 
 @dp.message_handler(lambda message: message.text == "Меню")
 async def menu1(message: types.Message):
-    await message.answer("Оберіть розділ", reply_markup=keyboardMenu())
+    await message.answer("Оберіть розділ", reply_markup=keyboard.Menu())
 
 @dp.message_handler(lambda message: message.text == "Переглянути кошик")
-async def basket(message: types.Message):
-    await message.answer(printBasket(), reply_markup=keyboardBasket())
+async def lookbasket(message: types.Message):
+    await message.answer(basket.print(MENU), reply_markup = keyboard.Basket())
 
 @dp.message_handler(lambda message: message.text == "Піца" or message.text == "Чай")
 async def menu(message: types.Message):
     section = "pizza" if message.text == "Піца" else "tea"
-    await message.answer(message.text, reply_markup=keyboardBack())
-    keyboard = types.InlineKeyboardMarkup()
-    for i in range(len(MENU)):
-        if MENU[i].ifSection(section):
-            name = MENU[i].GetName()
-            keyboard.add(types.InlineKeyboardButton(text=name, callback_data=f"addOder_{i}"),)
+    await message.answer(message.text, reply_markup = keyboard.Back())
     photo = open(section+'.jpg', 'rb')
     await bot.send_photo(chat_id=message.chat.id, photo=photo)
-    await message.answer("Замовити", reply_markup=keyboard)
-
-# def register_handlers_food(dp: Dispatcher):
-#     dp.register_message_handler(oder_adress, Text="Оформити замовлення", state="*")
-#     dp.register_message_handler(oder_fone_namder, state=OrderFood.waiting_for_adress)
-#     dp.register_message_handler(oder, state=OrderFood.waiting_for_fone_namber)
+    await message.answer("Замовити", reply_markup=keyboard.menu(MENU, section))
 
 @dp.message_handler(lambda message: message.text == "Оформити замовлення", state="*")
-async def oder_adress(message: types.Message, state: FSMContext):
-    await message.answer("Введіть ваш адрес")
-    await OrderFood.waiting_for_adress.set()
+async def oder_start(message: types.Message, state: FSMContext):
+    user = db.collClient.find_one({"userID": message.from_user.id})
+    if user != None:
+        await message.answer("Знайдено ваш профіль. Використовувати існуючі дані?")
+        await OrderFood.corect.set()
+    else:
+        await message.answer("Введіть ваш адрес")
+        await OrderFood.waiting_for_adress.set()
 
 @dp.message_handler(state=OrderFood.waiting_for_adress)
-async def oder_fone_namder(message: types.Message, state: FSMContext):
+async def oder_adres(message: types.Message, state: FSMContext):
     await state.update_data(adress=message.text.lower())
     await message.answer("Введіть номер телефону")
     await OrderFood.next()
 
 @dp.message_handler(state=OrderFood.waiting_for_fone_namber)
-async def oder(message: types.Message, state: FSMContext):
+async def oder_fone_namder(message: types.Message, state: FSMContext):
     await state.update_data(fone=message.text.lower())
+    await message.answer("Ваші дані збережені")
+    await OrderFood.next()
+
+@dp.message_handler(state=OrderFood.corect)
+async def oder_creat(message: types.Message, state: FSMContext):
+    time = datetime.datetime.now()
+    user = db.collClient.find_one({"userID": message.from_user.id})
+    if user != None:
+        user_data = {'adress': user.get('adress'), 'fone': user.get('fone')}
+    else:
+        user_data = await state.get_data()
+        newUser = {
+            "userID": message.from_user.id,
+            "name": message.from_user.full_name,
+            "adress": user_data['adress'],
+            "fone": user_data['fone']
+        }
+        db.collClient.insert_one(newUser)
+    Basket = basket.close(MENU)
+    oder = {
+        "time": time,
+        "username": message.from_user.username,
+        "name": message.from_user.full_name,
+        "adress": user_data['adress'],
+        "fone": user_data['fone'],
+        "basket": Basket
+    }
+    await state.update_data(oder=oder)
+    await message.answer(basket.print(MENU, oder), reply_markup=keyboard.Corect())
+    await OrderFood.next()
+
+@dp.message_handler(lambda message: message.text == "Так, все правильно", state=OrderFood.waiting_for_corect)
+async def ok(message: types.Message, state: FSMContext):
     user_data = await state.get_data()
-    oders = f"{message.from_user.username}, {message.from_user.full_name}\n" \
-            f"адрес  {user_data['adress']}\n" \
-            f"номер телефона {user_data['fone']}\n"
-    oders += printBasket()
-    await message.answer(oders)
+    db.collection.insert_one(user_data['oder'])
     await state.finish()
+    await message.answer("Ваше замовлення прийнято", reply_markup=keyboard.Start())
+
+@dp.message_handler(lambda message: message.text == "Змінити замовлення", state=OrderFood.waiting_for_corect)
+async def changeBasket(message: types.Message, state: FSMContext):
+    await state.finish()
+    await message.answer(basket.print(MENU), reply_markup=keyboard.Basket())
+
+@dp.message_handler(lambda message: message.text == "Змінити мої дані", state=OrderFood.waiting_for_corect)
+async def changeData(message: types.Message, state: FSMContext):
+    db.collClient.delete_one({"userID": message.from_user.id})
+    await oder_start(message, state)
 
 @dp.callback_query_handler(Text(startswith="addOder_"))
 async def add(callback: types.CallbackQuery):
     i = int(callback.data.split('_')[1])
     MENU[i].ToBasket()
     await callback.answer("Додано до кошика")
+
+@dp.callback_query_handler()
+async def exo(message: types.Message):
+    await message.reply(message.text)
 
 if __name__ == "__main__":
     # Запуск бота
