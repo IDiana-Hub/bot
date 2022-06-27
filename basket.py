@@ -1,26 +1,22 @@
-def print(MENU):
-    text = ""
-    cost = 0
-    for i in range(len(MENU)):
-        if MENU[i].GetN()>0:
-            text += f"{MENU[i].GetName()} x{MENU[i].GetN()}  {MENU[i].GetPrice()}грн  /del{i}\n"
-            cost += MENU[i].GetPrice() * MENU[i].GetN()
-    text += f"Вартість: {cost} грн"
-    return text
+def Print(MENU, order):
+    if order == None:
+        return "Кошик порожній"
+    else:
+        text = ""
+        cost = 0
+        for key in order:
+            try:
+                int(order[key])
+                if order[key] > 0:
+                    text += MENU[key].print(order[key]) + f" /del{key}\n"
+                    cost += MENU[key].GetPrice() * order[key]
+            except:
+                print()
+        text += f"Вартість: {cost} грн\n"
+        return text
 
-def print(MENU, oder):
-    text = f"{oder['adres']}\n {oder['fone']}\n"
-    cost = 0
-    for i in range(len(MENU)):
-        if MENU[i].GetN() > 0:
-            text += f"{MENU[i].GetName()} x{MENU[i].GetN()}  {MENU[i].GetPrice()}грн\n"
-            cost += MENU[i].GetPrice() * MENU[i].GetN()
-    text += f"Вартість: {cost} грн"
+def Close(MENU, user, order):
+    text = f"{user['name']}\n{user['adress']}\n{user['fone']}\n"
+    text += Print(MENU, order)
+    text += order["coment"]
     return text
-
-def close(MENU):
-    cBasket = []
-    for i in range(len(MENU)):
-        if MENU[i].GetN() > 0:
-            cBasket.append(MENU[i].print())
-    return cBasket
