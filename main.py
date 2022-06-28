@@ -78,7 +78,6 @@ async def menu(message: types.Message):
 @dp.message_handler(lambda message: message.text == "Оформити замовлення", state="*")
 async def oder_start(message: types.Message, state: FSMContext):
     user = db.collClient.find_one({"UserID": message.from_user.id})
-    print(user)
     if user != None:
         await message.answer("Знайдено ваш профіль. Введіть коментар до замовлення")
         await OrderFood.corect.set()
@@ -90,7 +89,13 @@ async def oder_start(message: types.Message, state: FSMContext):
 @dp.message_handler(state=OrderFood.waiting_for_adress)
 async def oder_adres(message: types.Message, state: FSMContext):
     await state.update_data(adress=message.text.lower())
-    await message.answer("Введіть номер телефону")
+    await message.answer("Введіть номер телефону", reply_markup=keyboard.contact())
+    await OrderFood.next()
+
+@dp.message_handler(content_types=['contact'], state=OrderFood.waiting_for_fone_namber)
+async def oder_contact(message: types.Message, state: FSMContext):
+    await state.update_data(fone = message.contact.phone_number.lower())
+    await message.answer("Введіть коментар до замовлення")
     await OrderFood.next()
 
 
@@ -105,6 +110,7 @@ async def oder_fone_namder(message: types.Message, state: FSMContext):
 async def oder_creat(message: types.Message, state: FSMContext):
     db.collOrder.update_one({"UserID": message.from_user.id}, {'$set': {"coment": message.text}})
     user = db.collClient.find_one({"UserID": message.from_user.id})
+
     if user == None:
         user_data = await state.get_data()
         newUser = {

@@ -58,3 +58,10 @@ def Corect():
     keyboard.add(Button2)
     keyboard.add(Button3)
     return keyboard
+
+def contact():
+    keyboard = types.ReplyKeyboardMarkup()
+    Button1 = types.KeyboardButton(text='Передати номер телефону', request_contact=True)
+    keyboard.add(Button1)
+    return keyboard
+
