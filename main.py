@@ -39,6 +39,7 @@ def newBasket(id):
 
 @dp.message_handler(commands="start")
 async def cmd_start(message: types.Message):
+    newBasket(message.from_user.id)
     await message.answer("Вас вітає ХХ, готові зробити замовлення?", reply_markup=keyboard.Start())
 
 
